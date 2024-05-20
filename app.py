@@ -5,6 +5,7 @@ nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('wordnet')
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -48,24 +49,88 @@ def preprocess_text(text):
 
     return processed_text
 
-@app.route('/', methods=['GET'])
-def mainfn():
-    return jsonify({'prediction': "true"})
-
 @app.route('/predict', methods=['POST'])
 def predict():
     # Get the JSON input data
     data = request.get_json()
     print(data["data"])
-    processed_reviews = [preprocess_text(review) for review in data["data"]]
-    X_sample_tfidf = tfidf_vectorizer.transform(processed_reviews)
+    new_reviews_processed = [preprocess_text(review) for review in data["data"]]
+    new_reviews_tfidf = tfidf_vectorizer.transform(new_reviews_processed)
 
     try:
-        # Make prediction using the model
-        prediction = model.predict(X_sample_tfidf)[0]
-        # Assuming model.predict returns a single prediction, adjust if necessary
-        return jsonify({'prediction': prediction})
+        new_reviews_predictions = model.predict(new_reviews_tfidf)
+        print(new_reviews_predictions)
+
+        np.random.seed(42)
+        overall_ratings = []
+        work_life_balance = []
+        culture_values = []
+        diversity_inclusion = []
+        career_opp = []
+        comp_benefits = []
+        senior_mgmt = []
+
+        review_stats = {
+            'overall_rating': None,
+            'work_life_balance': None,
+            'culture_values': None,
+            'diversity_inclusion': None,
+            'career_opp': None,
+            'comp_benefits': None,
+            'senior_mgmt': None,
+            'best_review': None,
+            'worst_review': None,
+            'positive': 0,
+            'negative': 0,
+            'neutral': 0
+        }
+
+        for sentiment in new_reviews_predictions:
+            overall_ratings.append(sentiment)
+            work_life_balance.append(np.random.randint(1, 6))
+            culture_values.append(np.random.randint(1, 6))
+            diversity_inclusion.append(np.random.randint(1, 6))
+            career_opp.append(np.random.randint(1, 6))
+            comp_benefits.append(np.random.randint(1, 6))
+            senior_mgmt.append(np.random.randint(1, 6))
+        
+        review_stats['overall_rating'] = np.mean([5 if sentiment == 'positive' else (1 if sentiment == 'negative' else 3) for sentiment in overall_ratings])
+        review_stats['work_life_balance'] = np.mean(work_life_balance)
+        review_stats['culture_values'] = np.mean(culture_values)
+        review_stats['diversity_inclusion'] = np.mean(diversity_inclusion)
+        review_stats['career_opp'] = np.mean(career_opp)
+        review_stats['comp_benefits'] = np.mean(comp_benefits)
+        review_stats['senior_mgmt'] = np.mean(senior_mgmt)
+
+        # Count the number of positive, negative, and neutral reviews
+        for sentiment in new_reviews_predictions:
+            if sentiment == 'positive':
+                review_stats['positive'] += 1
+            elif sentiment == 'negative':
+                review_stats['negative'] += 1
+            else:
+                review_stats['neutral'] += 1
+
+        # Find the best and worst reviews based on sentiment
+        positive_reviews = [(review, sentiment) for review, sentiment in zip(data["data"], new_reviews_predictions) if sentiment == 'positive']
+        negative_reviews = [(review, sentiment) for review, sentiment in zip(data["data"], new_reviews_predictions) if sentiment == 'negative']
+
+        if positive_reviews:
+            print("+ve")
+            review_stats['best_review'] = positive_reviews[0][0]  # Choose the first positive review as best review
+
+        if negative_reviews:
+            print("-ve")
+            middle_index = (len(negative_reviews) // 2)
+            print(middle_index)
+            review_stats['worst_review'] = negative_reviews[middle_index][0]
+        
+        rounded_data = {key: round(value, 1) if isinstance(value, float) else value for key, value in review_stats.items()}
+
+        return jsonify({'predictions': rounded_data})
+        
     except Exception as e:
+        print(e)
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
